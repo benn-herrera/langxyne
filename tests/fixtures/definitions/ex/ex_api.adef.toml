@@ -1,0 +1,44 @@
+# langxyne's own definition, round-tripped by run-bindings.sh where LANGXYNE_DEFINITIONS names no
+# consuming repository's tree: a wrapped API (its header under ex/driver/) and a u64 struct field,
+# so the generation writes the Lua support module beside the binding.
+[_general]
+_name = "ex_api"
+_namespace = "ex"
+_version = [1, 0, 0, 0]
+_bound_library = "ex"
+
+[[untyped_bit_const]]
+feat_a = 0
+
+[[untyped_const]]
+max_units = 16
+
+[[typed_const]]
+[typed_const.status]
+ok = 0
+err_busy = 9
+
+[[opaque_ref]]
+[opaque_ref.port]
+_ctor = "open_port"
+_dtor = "destroy_port"
+
+[[struct]]
+[struct.stats]
+count = "u32"
+bytes = "u64"
+
+[[function]]
+[function.open_port]
+_return = "status"
+pport = { _type = "port", _ref = "out" }
+pstats = { _type = "stats", _ref = "out", _optional = true }
+
+[function.destroy_port]
+_return = "status"
+hport = "port"
+
+[_wrapped_api]
+_headers = ["driver/ex_ioctl.h"]
+[_wrapped_api._pinned_value]
+feat_a = "EXD_FEAT_A"
