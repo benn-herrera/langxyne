@@ -1,5 +1,7 @@
 .venv/
 __pycache__/
 .pytest_cache/
-.opencode-temp/
+.claude/
 .claude-temp/
+.opencode/
+.opencode-temp/
