@@ -2,6 +2,11 @@
 
 API sync across implementation, exposure, bindings requires the tireless consistency best suited to automation
 
+## Agents and humans both stink at syncing bindings
+
+It's finicky, drudgerous, and treacherous work. Writing massive test suites to verify
+binding consistency is tremendously inefficient. It's much cheaper to just make inconsistency unrepresentable in your process.
+
 ## A C header is a rotten single source of truth
 
 A C header is an idiomatic expression of an API. Transforming one idiom to another while also imposing artificial restrictions on the usage of the single source of truth coding language introduces unnecessary complexities and gotchas.
