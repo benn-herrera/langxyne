@@ -4,7 +4,7 @@ pub mod abi {
     include!(concat!(env!("LANGXYNE_RUST_DIR"), "/xy_api_abi.rs"));
 }
 
-use abi::{Entry, Offset, OnBatch, OnMode, OnNotes, Stats, Status, Wrap, ffi};
+use abi::{Entry, Offset, OnBatch, OnMode, OnNotes, OutSlice, Stats, Status, Wrap, ffi};
 
 pub fn open_port(
     unit: u32,
@@ -43,7 +43,7 @@ pub fn spend(htoken: ffi::xy_token) -> Result<(), Status> {
     Ok(())
 }
 
-pub fn recv(hport: ffi::xy_port, pdst: Option<&mut [u8]>) -> Result<(), Status> {
+pub fn recv(hport: ffi::xy_port, pdst: Option<OutSlice<'_, u8>>) -> Result<(), Status> {
     let _ = hport;
     let _ = pdst;
     // replace: not implemented
@@ -193,10 +193,10 @@ pub fn echo_offset(
 /// entries e0..e2 (id 10 + i, label 'e<i>' at 2i) and their labels' arena 'e0e1e2', each as much as its buffer holds; lies at items capacity 4 (wrote 5, needed 9) and 6 (wrote 4), and at labels capacity 5 (wrote 7)
 pub fn list(
     hport: ffi::xy_port,
-    items: Option<&mut [Entry]>,
+    items: Option<OutSlice<'_, Entry>>,
     items_wrote: Option<&mut u64>,
     items_needed: Option<&mut u64>,
-    labels: Option<&mut [u8]>,
+    labels: Option<OutSlice<'_, u8>>,
     labels_wrote: Option<&mut u32>,
     labels_needed: Option<&mut u32>,
 ) -> Result<(), Status> {

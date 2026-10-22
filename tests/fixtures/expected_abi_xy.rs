@@ -620,6 +620,35 @@ fn c_len<T>(count: impl core::convert::TryInto<isize>) -> Option<usize> {
     isize::try_from(bytes).is_ok().then_some(len)
 }
 
+/// An `out` buffer of the caller's, `len()` elements the relay has not written: `take`
+/// zero-fills it, since the caller's memory may be uninitialised, and hands it over, so a call
+/// refused before the buffer is taken leaves the caller's memory as it was.
+pub struct OutSlice<'a, T> {
+    ptr: *mut T,
+    len: usize,
+    _call: core::marker::PhantomData<&'a mut [T]>,
+}
+
+impl<'a, T> OutSlice<'a, T> {
+    /// The buffer's length in elements.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Whether the buffer holds no element.
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// The buffer as a slice, zero-filled.
+    pub fn take(self) -> &'a mut [T] {
+        // SAFETY: only `c_out_slice` builds one, from a non-null pointer aligned and valid for
+        // writes of `len` elements for `'a`, of an element type valid as all-zero bytes.
+        unsafe { self.ptr.write_bytes(0, self.len) };
+        unsafe { core::slice::from_raw_parts_mut(self.ptr, self.len) }
+    }
+}
+
 /// A C `in` pointer and count as a slice: empty for null with a count of 0; `None` for null with
 /// any other count, a misaligned pointer, or a count whose bytes exceed `isize::MAX`.
 ///
@@ -658,24 +687,27 @@ unsafe fn c_slice_mut<'a, T>(
     Some(unsafe { core::slice::from_raw_parts_mut(ptr, len) })
 }
 
-/// A C `out` buffer as the implementation's slice, zero-filled first, since the caller's memory
-/// may be uninitialised: `None` for a null or misaligned pointer, or a count whose bytes exceed
-/// `isize::MAX`.
+/// A C `out` buffer as the implementation's `OutSlice`, written by nothing until the
+/// implementation takes it: `None` for a null or misaligned pointer, or a count whose bytes
+/// exceed `isize::MAX`.
 ///
 /// # Safety
 ///
-/// A non-null `ptr` is valid for writes of `count` elements while the slice lives, and `T` is
-/// valid as all-zero bytes.
-unsafe fn c_slice_zeroed<'a, T>(
+/// A non-null `ptr` is valid for writes of `count` elements for `'a`, and `T` is valid as
+/// all-zero bytes.
+unsafe fn c_out_slice<'a, T>(
     ptr: *mut T,
     count: impl core::convert::TryInto<isize>,
-) -> Option<&'a mut [T]> {
+) -> Option<OutSlice<'a, T>> {
     let len = c_len::<T>(count)?;
     if ptr.is_null() || !ptr.is_aligned() {
         return None;
     }
-    unsafe { ptr.write_bytes(0, len) };
-    Some(unsafe { core::slice::from_raw_parts_mut(ptr, len) })
+    Some(OutSlice {
+        ptr,
+        len,
+        _call: core::marker::PhantomData,
+    })
 }
 
 /// every entry so far, those new since the last call, their labels' arena so far, and 1 on the final call
@@ -896,9 +928,10 @@ pub unsafe extern "C" fn xy_recv(
     pdst: *mut core::ffi::c_void,
     pdst_count: u32,
 ) -> ffi::xy_status {
-    let pdst_local = unsafe { self::c_slice_zeroed(pdst.cast::<u8>(), pdst_count) };
+    let pdst_local = unsafe { self::c_out_slice(pdst.cast::<u8>(), pdst_count) };
     #[allow(clippy::type_complexity)]
-    const IMPLEMENTATION: fn(ffi::xy_port, Option<&mut [u8]>) -> Result<(), Status> = crate::recv;
+    const IMPLEMENTATION: fn(ffi::xy_port, Option<OutSlice<'_, u8>>) -> Result<(), Status> =
+        crate::recv;
     let result = IMPLEMENTATION(hport, pdst_local);
     match result {
         Ok(()) => ffi::XY_OK,
@@ -1273,19 +1306,19 @@ pub unsafe extern "C" fn xy_list(
     labels_wrote: *mut u32,
     labels_needed: *mut u32,
 ) -> ffi::xy_status {
-    let items_local = unsafe { self::c_slice_zeroed(items, items_count) };
+    let items_local = unsafe { self::c_out_slice(items, items_count) };
     let mut items_wrote_local = (!items_wrote.is_null()).then(u64::default);
     let mut items_needed_local = (!items_needed.is_null()).then(u64::default);
-    let labels_local = unsafe { self::c_slice_zeroed(labels.cast::<u8>(), labels_count) };
+    let labels_local = unsafe { self::c_out_slice(labels.cast::<u8>(), labels_count) };
     let mut labels_wrote_local = (!labels_wrote.is_null()).then(u32::default);
     let mut labels_needed_local = (!labels_needed.is_null()).then(u32::default);
     #[allow(clippy::type_complexity)]
     const IMPLEMENTATION: fn(
         ffi::xy_port,
-        Option<&mut [Entry]>,
+        Option<OutSlice<'_, Entry>>,
         Option<&mut u64>,
         Option<&mut u64>,
-        Option<&mut [u8]>,
+        Option<OutSlice<'_, u8>>,
         Option<&mut u32>,
         Option<&mut u32>,
     ) -> Result<(), Status> = crate::list;

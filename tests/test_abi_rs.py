@@ -136,7 +136,7 @@ class Validate(unittest.TestCase):
             ('unit = "u32"', "implementation"),
             ("buf = { _type", "c_slice"),
             ("data = { _type", "c_slice_mut"),
-            ("pdst = { _type", "c_slice_zeroed"),
+            ("pdst = { _type", "c_out_slice"),
             ("pdst = { _type", "c_len"),
         ):
             with self.subTest(name=name, needle=needle):
@@ -199,6 +199,17 @@ class Validate(unittest.TestCase):
             ],
         )
         self.assertEqual(self.validate(FIXTURE + '\n[struct.text_]\nv = "u32"\n'), [])
+
+    def test_the_out_slice_is_a_module_scope_name_where_a_buffer_is_out(self) -> None:
+        struct = '\n[struct.out_slice]\nv = "u32"\n'
+        self.assertEqual(
+            self.validate(KITCHEN_SINK + struct),
+            [
+                "rust_abi: module scope: OutSlice would be defined more than once, by struct.out_slice and the "
+                "relay's buffer helper"
+            ],
+        )
+        self.assertEqual(self.validate(FIXTURE + struct), [])
 
     def test_module_scope_collisions(self) -> None:
         for text, message in (

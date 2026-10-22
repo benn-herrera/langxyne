@@ -13,7 +13,8 @@ def validate(api: Api) -> list[str]:
     """Every objection the header has to `api`: a name that is a C keyword, a parameter
     named like a type the declarations spell, a constant whose C name is one of the
     header's own macros, a typed enum value above the `int32_t` maximum, which a C17
-    enumerator cannot hold, and a C identifier a union's list defines too."""
+    enumerator cannot hold, and a C identifier a union's list or a `_to_string` conversion
+    defines too."""
     objections = [f"{where}: '{name}' is a C keyword" for where, name in api.names() if name in c.C_KEYWORDS]
     objections += c.parameter_type_objections(api)
     macros = c.header_macros(api.namespace)
@@ -30,15 +31,15 @@ def validate(api: Api) -> list[str]:
         for e in t.entries
         if e.value > enumerator_max
     ]
-    objections += _union_name_objections(api)
+    objections += _generated_name_objections(api)
     return [f"{LABEL}: {o}" for o in objections]
 
 
-def _union_name_objections(api: Api) -> list[str]:
-    """A constant, typedef or function of the header whose C identifier is one a union's list
-    defines (`c.union_names()`), naming the union, as the loader words a C identifier defined
-    twice."""
-    generated = c.union_names(api)
+def _generated_name_objections(api: Api) -> list[str]:
+    """A C identifier of the header defined twice where one definer is a union's list
+    (`c.union_names()`) or a `_to_string` conversion (`c.to_string_names()`), naming the
+    first definer, as the loader words a C identifier defined twice."""
+    generated = c.union_names(api) + c.to_string_names(api)
     if not generated:
         return []
     return [

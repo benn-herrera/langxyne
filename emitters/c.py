@@ -19,6 +19,8 @@ from langxyne.model import (
     Union,
     generated_name_objections,
     headed,
+    named_values,
+    single_bit_entries,
 )
 
 C_KEYWORDS = frozenset(
@@ -143,17 +145,26 @@ def header_macros(namespace: str) -> frozenset[str]:
 def declarations(api: Api, *, function_prefix: str, header: bool = True) -> str:
     """The header's declarations in its order, each function after `function_prefix`
     (`NS_API ` in the header): with `header`, the version, the bit, plain, enum and string
-    constants, then the opaque refs, boxed scalars, structs, with `header` the lists of the
-    unions declaring `_mixed_type_list`, then callback types and functions, a named kind's
+    constants, each group or enum with `_to_string` followed by its conversion, a group's after
+    the blank line ending its run, then the opaque
+    refs, boxed scalars, structs, with `header` the lists of the unions declaring `_mixed_type_list`, then callback types and functions, a named kind's
     group docstring a comment line above the first of the group's items."""
     ns = api.namespace
     blocks = []
     if header:
         version = f"{naming.BASE_C_TYPES['u32'].const_macro}(0x{api.version_value():08x})"
         blocks.append(_define(naming.version_const(ns), version, None))
-        blocks += [_constant_group(api, g, operator="|") for g in api.bit_const_groups]
-        blocks += [_constant_group(api, g, operator="+") for g in api.const_groups]
-        blocks += [comment_line(h) + _typed_enum(api, t) for h, t in headed(api.typed_const_groups)]
+        for g in api.bit_const_groups:
+            blocks.append(_constant_group(api, g, operator="|"))
+            if g.to_string is not None:
+                blocks.append(_bit_to_string(api, g))
+        for g in api.const_groups:
+            blocks.append(_constant_group(api, g, operator="+"))
+            if g.to_string is not None:
+                blocks.append(_plain_to_string(api, g))
+        blocks += [
+            comment_line(h) + _typed_enum(api, t) + _enum_to_string(api, t) for h, t in headed(api.typed_const_groups)
+        ]
         blocks += [
             comment_line(g.docstring)
             + "".join(
@@ -220,6 +231,27 @@ def union_names(api: Api) -> list[tuple[str, str]]:
         names.append((f"union '{u.name}'", naming.const_name(ns, naming.union_align(u.name))))
         names += [(f"union '{u.name}'", naming.union_helper(ns, u.name, h)) for h in naming.UNION_HELPERS]
     return names
+
+
+def to_string_name(api: Api, to_string: str, *, typename: str | None) -> str:
+    """The C identifier of a `_to_string` conversion: `naming.flat_to_string()`'s name, an
+    enum's after its type name, as a function's is prefixed."""
+    return naming.function_name(api.namespace, naming.flat_to_string(to_string, typename=typename))
+
+
+def to_string_names(api: Api) -> list[tuple[str, str]]:
+    """(where, C identifier) of every `_to_string` conversion the header defines: each bit and
+    plain group's, then each enum's."""
+    groups = [
+        (f"{g.name}._to_string", to_string_name(api, g.to_string, typename=None))
+        for g in (*api.bit_const_groups, *api.const_groups)
+        if g.to_string is not None
+    ]
+    return groups + [
+        (f"typed_const.{t.name}._to_string", to_string_name(api, t.to_string, typename=t.name))
+        for t in api.typed_consts
+        if t.to_string is not None
+    ]
 
 
 def comment_line(doc: str | None) -> str:
@@ -335,23 +367,117 @@ def _function(api: Api, fn: Function, prefix: str) -> str:
     return f"{comment_line(' '.join(fn.docs()))}{prefix}{returns} {name}({param_list(api, fn)});\n"
 
 
+def _text_switch(
+    doc: str, name: str, *, param_type: str, param: str = "value", cases: list[tuple[str, str]], unknown: str
+) -> str:
+    """A `static inline` value-to-text function under its comment, of one parameter: a `switch`
+    answering each (case label, text) pair and `unknown` by default; duplicate case labels do
+    not compile, so a plain group's come from `named_values()`."""
+    body = "".join(f'\tcase {label}: return "{text}";\n' for label, text in cases)
+    return (
+        f"/* {doc} */\n"
+        f"static inline const char* {name}({param_type} {param}) {{\n"
+        f"\tswitch ({param}) {{\n{body}"
+        f'\tdefault: return "{unknown}";\n'
+        "\t}\n}\n"
+    )
+
+
+def _enum_to_string(api: Api, typed: TypedConst) -> str:
+    """An enum's conversion, where it has `_to_string`: each entry's unprefixed name, and
+    `UNKNOWN_<ENUM>` for a value no entry has."""
+    if typed.to_string is None:
+        return ""
+    unknown = naming.unknown_value_name(typed.name)
+    return _text_switch(
+        f"the unprefixed name of `value`'s entry; {unknown} for a value no entry has",
+        to_string_name(api, typed.to_string, typename=typed.name),
+        param_type=naming.type_name(api.namespace, typed.name),
+        cases=[(naming.const_name(api.namespace, e.name), naming.unprefixed_const_name(e.name)) for e in typed.entries],
+        unknown=unknown,
+    )
+
+
+def _plain_to_string(api: Api, group: Group[EnumEntry]) -> str:
+    """A plain group's conversion, where it has `_to_string`: each value's entry's unprefixed
+    name, the later entry's where two share a value, and `UNKNOWN` for a value no entry has."""
+    if group.to_string is None:
+        return ""
+    unknown = naming.unknown_value_name(None)
+    return _text_switch(
+        f"the unprefixed name of `value`'s entry, the later where two share it; {unknown} for a value no entry has",
+        to_string_name(api, group.to_string, typename=None),
+        param_type=naming.BASE_C_TYPES[group.base_type].c_type,
+        cases=[
+            (naming.const_name(api.namespace, e.name), naming.unprefixed_const_name(e.name))
+            for e in named_values(group)
+        ],
+        unknown=unknown,
+    )
+
+
+def _bit_to_string(api: Api, group: Group[BitConst]) -> str:
+    """A bit group's conversion, where it has `_to_string`, in `snprintf`'s form, since its text
+    is composed: the unprefixed name of each single-bit entry present, in document order, joined
+    with `|`, the bits left over as one last term of `0x` and lower-case hex, `NONE` for 0;
+    at most `text_count` bytes of it written, the last a NUL where `text_count` > 0, and its
+    whole length returned, the NUL excluded."""
+    if group.to_string is None:
+        return ""
+    flags = single_bit_entries(group)
+    tests = "".join(
+        f"\tif ((left & (uint32_t){naming.const_name(api.namespace, e.name)}) != 0) {{\n"
+        f'\t\tterms[count++] = "{naming.unprefixed_const_name(e.name)}";\n'
+        f"\t\tleft &= ~(uint32_t){naming.const_name(api.namespace, e.name)};\n"
+        "\t}\n"
+        for e in flags
+    )
+    return f"""\
+/* the unprefixed name of each single-bit entry `value` holds, in order, joined with |, the bits left over a last \
+term of 0x and lower-case hex, {naming.NO_FLAGS} for 0: writes at most text_count bytes of it, the last a NUL where \
+text_count > 0, and returns its whole length, the NUL excluded */
+static inline uint32_t {to_string_name(api, group.to_string, typename=None)}\
+({naming.BASE_C_TYPES[group.base_type].c_type} value, char* text, uint32_t text_count) {{
+\tconst char* terms[{len(flags) + 1}];
+\tchar hex[11] = "0x";
+\tuint32_t left = (uint32_t)value, count = 0, length = 0, i;
+\tint shift, digits = 2;
+{tests}\tif (left != 0) {{
+\t\tfor (shift = 28; shift >= 0; shift -= 4) {{
+\t\t\tif ((left >> shift) != 0) hex[digits++] = "0123456789abcdef"[(left >> shift) & 0xf];
+\t\t}}
+\t\tterms[count++] = hex;
+\t}}
+\tif (count == 0) terms[count++] = "{naming.NO_FLAGS}";
+\tfor (i = 0; i < count; i++) {{
+\t\tconst char* c;
+\t\tif (i > 0) {{
+\t\t\tif (length + 1 < text_count) text[length] = '|';
+\t\t\tlength++;
+\t\t}}
+\t\tfor (c = terms[i]; *c != '\\0'; c++, length++) {{
+\t\t\tif (length + 1 < text_count) text[length] = *c;
+\t\t}}
+\t}}
+\tif (text_count > 0) text[length < text_count ? length : text_count - 1] = '\\0';
+\treturn length;
+}}
+"""
+
+
 def _union_clause_text(api: Api) -> str:
     """The clause-to-text conversion, `ns_union_clause_text`: each clause's text, every binding's
     refusal's words, and `UNKNOWN_UNION_CLAUSE` for `NS_UNION_OK` or a value no clause has."""
     ns = api.namespace
-    clause = naming.type_name(ns, naming.UNION_CLAUSE)
-    cases = "".join(
-        f'\tcase {naming.const_name(ns, naming.union_clause_entry(name))}: return "{text}";\n'
-        for name, text in naming.UNION_CLAUSES
-    )
-    return (
-        f"/* the text of `clause`, as every binding's refusal words it; "
-        f"{naming.unknown_value_name(naming.UNION_CLAUSE)} for {naming.const_name(ns, naming.UNION_OK)} "
-        "or a value no clause has */\n"
-        f"static inline const char* {naming.function_name(ns, naming.UNION_CLAUSE_TEXT)}({clause} clause) {{\n"
-        f"\tswitch (clause) {{\n{cases}"
-        f'\tdefault: return "{naming.unknown_value_name(naming.UNION_CLAUSE)}";\n'
-        "\t}\n}\n"
+    unknown = naming.unknown_value_name(naming.UNION_CLAUSE)
+    return _text_switch(
+        f"the text of `clause`, as every binding's refusal words it; {unknown} for "
+        f"{naming.const_name(ns, naming.UNION_OK)} or a value no clause has",
+        naming.function_name(ns, naming.UNION_CLAUSE_TEXT),
+        param_type=naming.type_name(ns, naming.UNION_CLAUSE),
+        param="clause",
+        cases=[(naming.const_name(ns, naming.union_clause_entry(name)), text) for name, text in naming.UNION_CLAUSES],
+        unknown=unknown,
     )
 
 

@@ -20,7 +20,11 @@
 // its first call is called once, with the user_data passed beside it, and stream answers ERR_AGAIN;
 // 27 a null in array with a count of 0 arrives present and empty, so that sink is called once more
 // and stream answers ERR_AGAIN; 28 a null in buffer with a count of 0 arrives present and empty, so
-// send answers ERR_BUSY, as case 6's empty non-null buffer does.
+// send answers ERR_BUSY, as case 6's empty non-null buffer does; 29 recv on a null port answers
+// ERR_OTHER and leaves its buffer as the caller's memory held it, since the relay writes no out buffer
+// before the implementation takes it; 30 the header's _to_string conversions answer as every
+// binding's: an enum's and a plain group's names, and a bit group's text, cut to the caller's buffer
+// with its whole length returned.
 // send's count and list's items count are u64: recv's and bump's are u32, which cannot exceed
 // isize::MAX on a 64-bit target, so cases 4, 18 and 22 are the only counts or sizes above it.
 // With the argument `panic`, calls xy_seek(NULL, UINT64_MAX), whose implementation panics: the
@@ -64,6 +68,28 @@ static xy_flow halting_sink(const xy_entry* seen, uint64_t seen_count, const xy_
   (void)last;
   sentinel_calls += user_data == &sentinel ? 1 : 100;
   return XY_HALT;
+}
+
+// xy_access_to_string's text of `value` is `want`, whole in a buffer of 32 and cut to its first 5
+// bytes in one of 6, its whole length returned each time and with no buffer at all
+static bool access_text_is(int32_t value, const char* want) {
+  char whole[32];
+  char cut[6];
+  uint32_t length = (uint32_t)strlen(want);
+  return xy_access_to_string(value, whole, sizeof whole) == length && strcmp(whole, want) == 0 &&
+         xy_access_to_string(value, cut, sizeof cut) == length && strncmp(cut, want, 5) == 0 &&
+         cut[length < 5 ? length : 5] == '\0' && xy_access_to_string(value, NULL, 0) == length;
+}
+
+// the answers every binding's checks pin for the same values (check_xy.py, consumer_xy.cpp)
+static bool conversions_answer(void) {
+  return strcmp(xy_status_to_string(XY_ERR_BUSY), "ERR_BUSY") == 0 &&
+         strcmp(xy_status_to_string((xy_status)12345), "UNKNOWN_STATUS") == 0 &&
+         strcmp(xy_mode_to_string(XY_SLOW), "SLOW") == 0 && strcmp(xy_limit_to_string(16), "MAX_UNITS") == 0 &&
+         strcmp(xy_limit_to_string(XY_NEG), "NEG") == 0 && strcmp(xy_limit_to_string(XY_FLOOR), "FLOOR") == 0 &&
+         strcmp(xy_limit_to_string(99), "UNKNOWN") == 0 && access_text_is(3, "ACC_A|ACC_B") &&
+         access_text_is(1, "ACC_A") && access_text_is(0, "NONE") && access_text_is(9, "ACC_A|0x8") &&
+         access_text_is(-1, "ACC_A|ACC_B|0xfffffffc");
 }
 
 static int cases(void) {
@@ -231,6 +257,20 @@ static int cases(void) {
   }
   if (xy_send(port, NULL, 0) != XY_ERR_BUSY) {
     return 28;
+  }
+
+  memset(dirty, 0xaa, sizeof dirty);
+  if (xy_recv(NULL, dirty, sizeof dirty) != XY_ERR_OTHER) {
+    return 29;
+  }
+  for (size_t i = 0; i < sizeof dirty; ++i) {
+    if ((unsigned char)dirty[i] != 0xaa) {
+      return 29;
+    }
+  }
+
+  if (!conversions_answer()) {
+    return 30;
   }
 
   if (xy_destroy_port(port) != XY_OK) {

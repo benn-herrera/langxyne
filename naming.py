@@ -55,6 +55,9 @@ RESOLVE = "resolve"
 # The Rust binding's and the Go binding's struct of what a reported buffer wrote and needs.
 FILLED = "Filled"
 
+# The Rust relay's handle on an `out` buffer, which writes nothing until the implementation takes it.
+OUT_SLICE = "OutSlice"
+
 # The Python module's exception class, raised for a result other than the zero entry.
 ERROR = "Error"
 

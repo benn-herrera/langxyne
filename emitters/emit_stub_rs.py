@@ -66,9 +66,17 @@ def _imported(api: Api) -> list[tuple[str, str]]:
 
 
 def _sequences(api: Api) -> list[tuple[str, str]]:
-    """(where, name) of each union's sequence a list parameter's signature names from the relay."""
+    """(where, name) of each union's sequence a list parameter's signature names from the relay,
+    and the relay's `naming.OUT_SLICE` where an `out` buffer's does."""
     used = {p.type for fn in api.functions for p in fn.params if p.is_union}
-    return [(f"union.{u.name}", naming.union_sequence(u.name)) for u in api.unions if u.name in used]
+    names = [(f"union.{u.name}", naming.union_sequence(u.name)) for u in api.unions if u.name in used]
+    outs = [
+        f"function.{fn.name}.{p.name}"
+        for fn in api.functions
+        for p in fn.params
+        if p.is_buffer and not p.is_union and p.ref == "out"
+    ]
+    return names + [(outs[0], naming.OUT_SLICE)] if outs else names
 
 
 def _imports(api: Api) -> list[str]:

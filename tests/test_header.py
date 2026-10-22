@@ -541,7 +541,11 @@ class UnionList(unittest.TestCase):
                 "xy_union_clause",
             ),
             (mutate(UNIONS, "kind_mark = 2", "kind_mark = 2\nunion_ok = 3"), "untyped_const.union_ok", "XY_UNION_OK"),
-            (mutate(UNIONS, "kind_mark = 2", "kind_mark = 2\nnote_align = 3"), "untyped_const.note_align", "XY_NOTE_ALIGN"),
+            (
+                mutate(UNIONS, "kind_mark = 2", "kind_mark = 2\nnote_align = 3"),
+                "untyped_const.note_align",
+                "XY_NOTE_ALIGN",
+            ),
             (
                 UNIONS + '\n[function.union_clause_text]\n_return = "status"\n',
                 "function.union_clause_text",
@@ -561,6 +565,64 @@ class UnionList(unittest.TestCase):
                 )
         free = UNION_NOT_LISTED + '\n[function.note_next]\n_return = "status"\n'
         self.assertEqual(emit_c.validate(load(free)), [])
+
+
+class ToString(unittest.TestCase):
+    """A `_to_string` conversion follows its enum's typedef or its group's macros; edge_xy.c
+    checks what each answers."""
+
+    def setUp(self) -> None:
+        self.api = load(KITCHEN_SINK)
+        self.text = header(self.api)
+
+    def test_an_enums_conversion_follows_its_typedef(self) -> None:
+        self.assertIn(
+            "typedef enum xy_mode xy_mode;\n"
+            "/* the unprefixed name of `value`'s entry; UNKNOWN_MODE for a value no entry has */\n"
+            "static inline const char* xy_mode_to_string(xy_mode value) {\n"
+            "\tswitch (value) {\n"
+            '\tcase XY_FINE: return "FINE";\n'
+            '\tcase XY_SLOW: return "SLOW";\n'
+            '\tdefault: return "UNKNOWN_MODE";\n'
+            "\t}\n}\n",
+            self.text,
+        )
+        self.assertNotIn("xy_flow_to_string", self.text)
+
+    def test_a_plain_groups_conversion_names_each_value_by_its_later_entry(self) -> None:
+        text = header(load(mutate(FIXTURE, "max_units = 16\n", "max_units = 16\ntop = 16\n")))
+        self.assertIn(
+            "#define XY_MAGIC INT32_C(0xbeef) /* wire magic */\n\n"
+            "/* the unprefixed name of `value`'s entry, the later where two share it; UNKNOWN for a value no entry "
+            "has */\n"
+            "static inline const char* xy_limit_to_string(int32_t value) {\n"
+            "\tswitch (value) {\n"
+            '\tcase XY_TOP: return "TOP";\n'
+            '\tcase XY_MAGIC: return "MAGIC";\n'
+            '\tdefault: return "UNKNOWN";\n'
+            "\t}\n}\n",
+            text,
+        )
+
+    def test_a_bit_groups_conversion_takes_the_callers_buffer(self) -> None:
+        self.assertIn(
+            "static inline uint32_t xy_access_to_string(int32_t value, char* text, uint32_t text_count) {\n", self.text
+        )
+        # each single-bit entry, never the composed acc_ab
+        self.assertIn("(uint32_t)XY_ACC_B) != 0", self.text)
+        self.assertNotIn("XY_ACC_AB) != 0", self.text)
+
+    def test_the_lua_declarations_carry_no_conversion(self) -> None:
+        self.assertNotIn("to_string", c.binding_declarations(self.api))
+
+    def test_a_c_identifier_a_conversion_defines_is_refused_where_the_header_defines_it_too(self) -> None:
+        self.assertEqual(
+            emit_c.validate(load(KITCHEN_SINK + '\n[function.status_to_string]\n_return = "status"\n')),
+            [
+                "header: function.status_to_string: C identifier xy_status_to_string already defined by "
+                "typed_const.status._to_string"
+            ],
+        )
 
 
 if __name__ == "__main__":

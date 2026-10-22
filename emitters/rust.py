@@ -56,13 +56,42 @@ _NOT_SNAKE_CASE = re.compile(r"[A-Z]|__")
 LEN_HELPER = "c_len"
 """The count check every slice helper calls: the name `_LEN_TEXT` defines and each of
 `_SLICE_TEXT` calls, which a rename changes in all four."""
-SLICE_HELPERS = {"in": "c_slice", "inout": "c_slice_mut", "out": "c_slice_zeroed"}
+SLICE_HELPERS = {"in": "c_slice", "inout": "c_slice_mut", "out": "c_out_slice"}
 """The slice helper a C pointer and count of each `_ref` goes through: the name its
 `_SLICE_TEXT` defines, which a rename changes in both."""
 
 # Every element type the loader admits in a buffer (u8 for `memory`; builtins, boxed
 # scalars, and structs of them, of `text` and of enum aliases) is valid as all-zero bytes,
-# which `c_slice_zeroed` relies on.
+# which `OutSlice::take` relies on.
+_OUT_SLICE_TEXT = f"""/// An `out` buffer of the caller's, `len()` elements the relay has not written: `take`
+/// zero-fills it, since the caller's memory may be uninitialised, and hands it over, so a call
+/// refused before the buffer is taken leaves the caller's memory as it was.
+pub struct {naming.OUT_SLICE}<'a, T> {{
+    ptr: *mut T,
+    len: usize,
+    _call: core::marker::PhantomData<&'a mut [T]>,
+}}
+
+impl<'a, T> {naming.OUT_SLICE}<'a, T> {{
+    /// The buffer's length in elements.
+    pub fn len(&self) -> usize {{
+        self.len
+    }}
+
+    /// Whether the buffer holds no element.
+    pub fn is_empty(&self) -> bool {{
+        self.len == 0
+    }}
+
+    /// The buffer as a slice, zero-filled.
+    pub fn take(self) -> &'a mut [T] {{
+        // SAFETY: only `{SLICE_HELPERS["out"]}` builds one, from a non-null pointer aligned and valid for
+        // writes of `len` elements for `'a`, of an element type valid as all-zero bytes.
+        unsafe {{ self.ptr.write_bytes(0, self.len) }};
+        unsafe {{ core::slice::from_raw_parts_mut(self.ptr, self.len) }}
+    }}
+}}
+"""
 _LEN_TEXT = """/// A C element count as the length of a slice of `T`: `None` below zero, or where the slice's
 /// bytes would exceed `isize::MAX`.
 fn c_len<T>(count: impl core::convert::TryInto<isize>) -> Option<usize> {
@@ -104,34 +133,37 @@ unsafe fn c_slice_mut<'a, T>(ptr: *mut T, count: impl core::convert::TryInto<isi
     Some(unsafe { core::slice::from_raw_parts_mut(ptr, len) })
 }
 """,
-    "out": """/// A C `out` buffer as the implementation's slice, zero-filled first, since the caller's memory
-/// may be uninitialised: `None` for a null or misaligned pointer, or a count whose bytes exceed
-/// `isize::MAX`.
+    "out": f"""/// A C `out` buffer as the implementation's `{naming.OUT_SLICE}`, written by nothing until the
+/// implementation takes it: `None` for a null or misaligned pointer, or a count whose bytes
+/// exceed `isize::MAX`.
 ///
 /// # Safety
 ///
-/// A non-null `ptr` is valid for writes of `count` elements while the slice lives, and `T` is
-/// valid as all-zero bytes.
-unsafe fn c_slice_zeroed<'a, T>(ptr: *mut T, count: impl core::convert::TryInto<isize>) -> Option<&'a mut [T]> {
+/// A non-null `ptr` is valid for writes of `count` elements for `'a`, and `T` is valid as
+/// all-zero bytes.
+unsafe fn {SLICE_HELPERS["out"]}<'a, T>(ptr: *mut T, count: impl core::convert::TryInto<isize>) -> Option<{naming.OUT_SLICE}<'a, T>> {{
     let len = c_len::<T>(count)?;
-    if ptr.is_null() || !ptr.is_aligned() {
+    if ptr.is_null() || !ptr.is_aligned() {{
         return None;
-    }
-    unsafe { ptr.write_bytes(0, len) };
-    Some(unsafe { core::slice::from_raw_parts_mut(ptr, len) })
-}
+    }}
+    Some({naming.OUT_SLICE} {{ ptr, len, _call: core::marker::PhantomData }})
+}}
 """,
 }
 
 
 def slice_helpers(refs: Container[str]) -> list[tuple[str, str]]:
     """(name, text) of the private functions that turn a C pointer and count into a slice:
-    `c_len`, then the helper of each `_ref` in `refs`, in `SLICE_HELPERS`' order; none where
-    `refs` holds none of them. Each helper is generic over the element, a `memory` pointer
-    reaching it as `u8`, and is called as `self::c_slice(...)`, a path no parameter shadows.
-    The one statement of both what a file emits and what it defines at module scope."""
+    `c_len`, then, for `out`, the public `naming.OUT_SLICE` its helper builds, then the helper
+    of each `_ref` in `refs`, in `SLICE_HELPERS`' order; none where `refs` holds none of them.
+    Each helper is generic over the element, a `memory` pointer reaching it as `u8`, and is
+    called as `self::c_slice(...)`, a path no parameter shadows. The one statement of both what
+    a file emits and what it defines at module scope."""
     helpers = [(SLICE_HELPERS[r], text) for r, text in _SLICE_TEXT.items() if r in refs]
-    return [(LEN_HELPER, _LEN_TEXT), *helpers] if helpers else []
+    if not helpers:
+        return []
+    out_slice = [(naming.OUT_SLICE, _OUT_SLICE_TEXT)] if "out" in refs else []
+    return [(LEN_HELPER, _LEN_TEXT), *out_slice, *helpers]
 
 
 def rustfmt(text: str) -> str:
@@ -276,15 +308,18 @@ def out_default(api: Api, type_name: str) -> str:
 
 
 def implementation_type(api: Api, param: Param) -> str:
-    """The type the relay hands the implementation `param` as: a buffer one slice of bytes or
-    of `value_type()`, `None` for null; a callback an `Option` of the relay's wrapper of it,
+    """The type the relay hands the implementation `param` as: an `out` buffer its
+    `naming.OUT_SLICE` of bytes or of `value_type()`, any other buffer one slice of them, `None`
+    for null; a callback an `Option` of the relay's wrapper of it,
     `None` for null; a pointer an `Option` of a reference to `value_type()`, `None` for null;
     by value `value_type()` itself; a union's list an `Option` of its sequence, `None` for a
     null or malformed base."""
     if param.is_union:
         return f"Option<{naming.union_sequence(param.type)}<'_>>"
+    if param.is_buffer and param.ref == "out":
+        return f"Option<{naming.OUT_SLICE}<'_, {_element(api, param)}>>"
     if param.is_buffer:
-        return f"Option<{view_type(api, param, mutable=param.ref != 'in')}>"
+        return f"Option<{view_type(api, param, mutable=param.ref == 'inout')}>"
     if param.callback:
         return f"Option<{naming.upper_camel(param.type)}<'_>>"
     base = value_type(api, param.type)
@@ -309,8 +344,12 @@ def implementation_params(api: Api, fn: Function) -> list[tuple[str, str]]:
 
 def view_type(api: Api, param: Param, *, mutable: bool = False) -> str:
     """A buffer as a slice of bytes or of `value_type()`, as the relay and its callbacks spell it."""
-    element = "u8" if param.type == "memory" else value_type(api, param.type)
-    return f"&mut [{element}]" if mutable else f"&[{element}]"
+    return f"&mut [{_element(api, param)}]" if mutable else f"&[{_element(api, param)}]"
+
+
+def _element(api: Api, param: Param) -> str:
+    """A buffer's element: `u8` for `memory`, else `value_type()`."""
+    return "u8" if param.type == "memory" else value_type(api, param.type)
 
 
 def callback_c_params(api: Api, callback: Function, *, path: str = "") -> list[tuple[str, str]]:

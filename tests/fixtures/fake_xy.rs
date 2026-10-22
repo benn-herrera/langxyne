@@ -12,7 +12,8 @@
 //                   stream_notes' batch above 6
 //   ErrAgain        configure's mode naming no Mode entry
 //   ErrOther        a null port for destroy_port and a null link or port for attach, as
-//                   fake_xy.cpp; recv's or list's buffers not arriving zeroed
+//                   fake_xy.cpp; recv's or list's buffers not arriving zeroed; a null port for
+//                   recv, answered before its buffer is taken, so the caller's memory stays as it was
 // mint writes the one token this library issues, and configure answers ok only for it, as
 // fake_xy.cpp's. seek(u64::MAX) panics, so a caller can see the relay abort the process.
 // stream's batch 96 delivers as batch 1 does, and while it runs seek(96) on any port calls its
@@ -37,7 +38,7 @@ pub mod abi {
 
 use abi::{
     Entry, Mode, NoteBuf, NoteHead, NoteLine, NoteMark, NoteRef, Offset, OnBatch, OnMode, OnNotes,
-    Stats, Status, Text, Wrap, ffi,
+    OutSlice, Stats, Status, Text, Wrap, ffi,
 };
 use core::cell::Cell;
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -133,11 +134,14 @@ pub fn spend(htoken: ffi::xy_token) -> Result<(), Status> {
     Ok(())
 }
 
-pub fn recv(hport: ffi::xy_port, pdst: Option<&mut [u8]>) -> Result<(), Status> {
-    let _ = hport;
+pub fn recv(hport: ffi::xy_port, pdst: Option<OutSlice<'_, u8>>) -> Result<(), Status> {
     let Some(pdst) = pdst else {
         return Err(Status::ErrUnsupported);
     };
+    if hport.is_null() {
+        return Err(Status::ErrOther);
+    }
+    let pdst = pdst.take();
     if pdst.iter().any(|&b| b != 0) {
         return Err(Status::ErrOther);
     }
@@ -332,10 +336,10 @@ pub fn echo_offset(
 /// entries e0..e2 (id 10 + i, label 'e<i>' at 2i) and their labels' arena 'e0e1e2', each as much as its buffer holds; lies at items capacity 4 (wrote 5, needed 9) and 6 (wrote 4), and at labels capacity 5 (wrote 7)
 pub fn list(
     hport: ffi::xy_port,
-    items: Option<&mut [Entry]>,
+    items: Option<OutSlice<'_, Entry>>,
     items_wrote: Option<&mut u64>,
     items_needed: Option<&mut u64>,
-    labels: Option<&mut [u8]>,
+    labels: Option<OutSlice<'_, u8>>,
     labels_wrote: Option<&mut u32>,
     labels_needed: Option<&mut u32>,
 ) -> Result<(), Status> {
@@ -350,6 +354,7 @@ pub fn list(
     else {
         return Err(Status::ErrFloor);
     };
+    let (items, labels) = (items.take(), labels.take());
     if items.iter().any(|e| *e != Entry::default()) || labels.iter().any(|&b| b != 0) {
         return Err(Status::ErrOther);
     }

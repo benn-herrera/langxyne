@@ -114,6 +114,16 @@ class Unions(unittest.TestCase):
             ],
         )
 
+    def test_the_imported_out_slice_is_a_module_scope_name(self) -> None:
+        keep = '\n[[struct]]\n[struct.out_slice]\nv = "u32"\n\n[[function]]\n[function.keep]\n_return = "status"\n'
+        self.assertEqual(
+            emit_stub_rs.validate(load(KITCHEN_SINK + keep + 's = { _type = "out_slice", _ref = "in" }\n')),
+            [
+                "rust_stub: module scope: OutSlice would be defined more than once, by struct.out_slice and "
+                "function.recv.pdst"
+            ],
+        )
+
 
 class GroupDocstring(unittest.TestCase):
     def test_a_function_groups_docstring_is_a_line_above_its_first_function(self) -> None:
