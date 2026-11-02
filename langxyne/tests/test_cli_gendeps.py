@@ -120,13 +120,15 @@ class GendepsMake(unittest.TestCase):
         out = self.make_n()
         self.assertIn("PYTHONPATH=/pkg", out)
         self.assertIn(
-            "python3 -m langxyne a.adef.toml --generated OUTDIR --project xy --outputs=h,hpp,lua,stub_cpp,rs,abi_rs,stub_rs,go,py\n",
+            "python3 -m langxyne generate a.adef.toml --generated OUTDIR --project xy --outputs=h,hpp,lua,stub_cpp,rs,abi_rs,stub_rs,go,py\n",
             out,
         )
 
     def test_subset_fragment_makes_only_its_outputs(self) -> None:
         out = self.make_n("--outputs=hpp,lua")
-        self.assertIn("python3 -m langxyne a.adef.toml --generated OUTDIR --project xy --outputs=hpp,lua\n", out)
+        self.assertIn(
+            "python3 -m langxyne generate a.adef.toml --generated OUTDIR --project xy --outputs=hpp,lua\n", out
+        )
         self.assertIn(
             "echo target=OUTDIR/include/xy/xy_api.hpp target=OUTDIR/lua/xy_api.lua target=OUTDIR/lua/i64.lua\n",
             out,

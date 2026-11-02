@@ -1,4 +1,4 @@
-"""CLI: validate an .adef.toml definition and write the selected outputs (see `EMITTERS`)
+"""CLI: (generate mode) validate an .adef.toml definition and write the selected outputs (see `EMITTERS`)
 into the generated directory, or (`--check`) compare them with the files there, or (gendeps
 mode) print a Makefile fragment naming those outputs for one definition, or (dump-schema
 mode) print the definition schema. The definition's
@@ -23,12 +23,70 @@ DEFAULT_TOKENS = tuple(t for t in TOKENS if t not in ("wasm_rs", "node"))
 
 
 def main(argv: list[str] | None = None) -> int:
-    argv = sys.argv[1:] if argv is None else argv
-    if argv[:1] == ["gendeps"]:
-        return _gendeps_main(argv[1:])
-    if argv[:1] == ["dump-schema"]:
-        return _dump_schema_main(argv[1:])
-    return _generate_main(argv)
+    args, extras = _parser().parse_known_args(argv)
+    if extras:
+        # argparse hands a mode's unrecognized arguments up to the top-level parser; refuse
+        # them under the mode's own usage instead
+        args.parser.error(f"unrecognized arguments: {' '.join(extras)}")
+    return args.run(args)
+
+
+def _parser() -> argparse.ArgumentParser:
+    selection = argparse.ArgumentParser(add_help=False)
+    selection.add_argument(
+        "--link",
+        choices=naming.LINK_MODES,
+        default=naming.DEFAULT_LINK,
+        help=f"how a consumer's build links the library (default: {naming.DEFAULT_LINK})",
+    )
+    selection.add_argument(
+        "--outputs",
+        type=_outputs,
+        default=DEFAULT_TOKENS,
+        help=f"comma-separated outputs to produce, from {','.join(TOKENS)} (default: {','.join(DEFAULT_TOKENS)})",
+    )
+    selection.add_argument(
+        "--no-schema",
+        dest="schema",
+        action="store_false",
+        help="skip the api_def.schema.json pass the loader otherwise runs first where jsonschema is installed",
+    )
+
+    parser = argparse.ArgumentParser(
+        prog="langxyne",
+        description="generate userspace API artifacts from an API definition; `langxyne <mode> --help` gives a mode's arguments",
+    )
+    modes = parser.add_subparsers(title="modes", dest="mode", required=True)
+
+    about = "generate userspace API artifacts from an API definition"
+    generate = modes.add_parser("generate", parents=[selection], help=about, description=about)
+    generate.add_argument("definition", type=Path, help="path to a *.adef.toml file")
+    generate.add_argument("--generated", type=Path, required=True, help="output directory")
+    generate.add_argument(
+        "--project",
+        required=True,
+        help="project name, its directory's: the include subdirectory and the base of each _wrapped_api._headers path",
+    )
+    generate.add_argument(
+        "--library",
+        help="the library's name, which the Lua module loads and the Rust binding links (default: _general._bound_library)",
+    )
+    generate.add_argument(
+        "--check",
+        action="store_true",
+        help="write nothing; exit 1 when a selected output differs from its file under --generated or is missing",
+    )
+    generate.set_defaults(run=_generate, parser=generate)
+
+    about = "print a Makefile fragment naming the outputs for a definition"
+    gendeps = modes.add_parser("gendeps", parents=[selection], help=about, description=about)
+    gendeps.add_argument("definitions", nargs="*", help="path to a *.adef.toml file")
+    gendeps.set_defaults(run=_gendeps, parser=gendeps)
+
+    about = "print api_def.schema.json, the JSON Schema of a definition, to stdout"
+    dump_schema = modes.add_parser("dump-schema", help=about, description=about)
+    dump_schema.set_defaults(run=_dump_schema, parser=dump_schema)
+    return parser
 
 
 def _outputs(text: str) -> tuple[str, ...]:
@@ -44,43 +102,11 @@ def _outputs(text: str) -> tuple[str, ...]:
     return tuple(t for t in TOKENS if t in tokens)
 
 
-def _dump_schema_main(argv: list[str]) -> int:
+def _dump_schema(_: argparse.Namespace) -> int:
     """Write the definition schema to stdout byte for byte, so an installed package's copy
     can be redirected to where an editor's `#:schema` directive or `.taplo.toml` names it."""
-    parser = argparse.ArgumentParser(
-        prog="langxyne dump-schema",
-        description="print api_def.schema.json, the JSON Schema of a definition, to stdout",
-    )
-    parser.parse_args(argv)
     sys.stdout.write(model.SCHEMA_PATH.read_text(encoding="utf-8"))
     return 0
-
-
-def _add_outputs_argument(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--outputs",
-        type=_outputs,
-        default=DEFAULT_TOKENS,
-        help=f"comma-separated outputs to produce, from {','.join(TOKENS)} (default: {','.join(DEFAULT_TOKENS)})",
-    )
-
-
-def _add_link_argument(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--link",
-        choices=naming.LINK_MODES,
-        default=naming.DEFAULT_LINK,
-        help=f"how a consumer's build links the library (default: {naming.DEFAULT_LINK})",
-    )
-
-
-def _add_schema_argument(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--no-schema",
-        dest="schema",
-        action="store_false",
-        help="skip the api_def.schema.json pass the loader otherwise runs first where jsonschema is installed",
-    )
 
 
 def _flag_objections(flag: str, value: str | None, *, names: str, check: Callable[[str, str], None]) -> list[str]:
@@ -118,28 +144,7 @@ def _report(definition: Path | str, objections: Iterable[object]) -> int:
     return 2
 
 
-def _generate_main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="generate userspace API artifacts from an API definition")
-    parser.add_argument("definition", type=Path, help="path to a *.adef.toml file")
-    parser.add_argument("--generated", type=Path, required=True, help="output directory")
-    parser.add_argument(
-        "--project",
-        required=True,
-        help="project name, its directory's: the include subdirectory and the base of each _wrapped_api._headers path",
-    )
-    parser.add_argument(
-        "--library",
-        help="the library's name, which the Lua module loads and the Rust binding links (default: _general._bound_library)",
-    )
-    _add_link_argument(parser)
-    _add_outputs_argument(parser)
-    _add_schema_argument(parser)
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="write nothing; exit 1 when a selected output differs from its file under --generated or is missing",
-    )
-    args = parser.parse_args(argv)
+def _generate(args: argparse.Namespace) -> int:
     outputs: tuple[str, ...] = args.outputs
 
     definition: Path = args.definition
@@ -219,17 +224,7 @@ def _check(*, name: str, generated: Path, texts: dict[Path, str]) -> int:
     return 0
 
 
-def _gendeps_main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(
-        prog="langxyne gendeps",
-        description="print a Makefile fragment naming the outputs for a definition",
-    )
-    parser.add_argument("definitions", nargs="*", help="path to a *.adef.toml file")
-    _add_link_argument(parser)
-    _add_outputs_argument(parser)
-    _add_schema_argument(parser)
-    args = parser.parse_args(argv)
-
+def _gendeps(args: argparse.Namespace) -> int:
     if len(args.definitions) != 1:
         print("langxyne: gendeps takes exactly one definition", file=sys.stderr)
         return 2
@@ -263,7 +258,7 @@ def _gendeps_block(*, definition: str, paths: list[Path], outputs: tuple[str, ..
     link_flag = "" if link == naming.DEFAULT_LINK else f" --link={link}"
     recipe = (
         "PYTHONPATH=$(LANGXYNE) PYTHONDONTWRITEBYTECODE=1 "
-        f"python3 -m langxyne $< --generated $(GEN) --project $(BASE) --outputs={','.join(outputs)}{link_flag}"
+        f"python3 -m langxyne generate $< --generated $(GEN) --project $(BASE) --outputs={','.join(outputs)}{link_flag}"
     )
     return f"GENERATED := \\\n{targets}\n\n$(GENERATED) &: {definition}\n\t{recipe}\n"
 

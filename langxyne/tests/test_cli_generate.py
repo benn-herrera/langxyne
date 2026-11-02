@@ -136,7 +136,7 @@ class Generate(GenerationCase):
             with self.subTest(message=message), tempfile.TemporaryDirectory() as tmp:
                 definition = write(Path(tmp) / "xy_api.adef.toml", text)
                 generated = Path(tmp) / "generated"
-                argv = [definition, "--generated", generated, "--project", "xy"]
+                argv = ["generate", definition, "--generated", generated, "--project", "xy"]
                 result = run([sys.executable, "-c", WITHOUT_JSONSCHEMA, *argv], env=env)
                 self.assertEqual(result.returncode, 2, result.stderr)
                 self.assertEqual(result.stderr.splitlines()[0], f"langxyne: {definition}: {message}")
@@ -333,6 +333,20 @@ class DumpSchema(unittest.TestCase):
         code, stdout, stderr = run_main(["dump-schema", "xy_api.adef.toml"])
         self.assertEqual((code, stdout), (2, ""))
         self.assertIn("usage: langxyne dump-schema", stderr)
+
+
+class Modes(unittest.TestCase):
+    def test_top_level_help_lists_every_mode(self) -> None:
+        code, stdout, stderr = run_main(["--help"])
+        self.assertEqual((code, stderr), (0, ""))
+        for mode in ("generate", "gendeps", "dump-schema"):
+            with self.subTest(mode=mode):
+                self.assertRegex(stdout, rf"(?m)^ +{mode} +\S")
+
+    def test_no_mode_is_a_usage_error(self) -> None:
+        code, stdout, stderr = run_main([])
+        self.assertEqual((code, stdout), (2, ""))
+        self.assertIn("usage: langxyne", stderr)
 
 
 if __name__ == "__main__":

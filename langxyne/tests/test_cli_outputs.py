@@ -161,7 +161,7 @@ class Check(GenerationCase):
 
     def check(self, definition: Path, generated: Path, *flags: str) -> tuple[int, str]:
         code, _, stderr = run_main(
-            [str(definition), "--generated", str(generated), "--project", "xy", "--check", *flags]
+            ["generate", str(definition), "--generated", str(generated), "--project", "xy", "--check", *flags]
         )
         return code, stderr
 

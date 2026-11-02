@@ -44,5 +44,7 @@ class GenerationCase(unittest.TestCase):
         definition = Path(tmp.name) / file_name
         definition.write_text(text, encoding="utf-8")
         generated = Path(tmp.name) / "generated"
-        code, _, stderr = run_main([str(definition), "--generated", str(generated), "--project", "xy", *flags])
+        code, _, stderr = run_main(
+            ["generate", str(definition), "--generated", str(generated), "--project", "xy", *flags]
+        )
         return code, stderr, generated, definition

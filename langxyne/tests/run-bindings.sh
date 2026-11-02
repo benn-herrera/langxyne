@@ -325,7 +325,7 @@ function go_build() { # <module> <program> <library> [experiment]
 function generate() { # <def file> <out dir> [extra flags...]: the generator, the loop's one
   # door to its trees; a failure here is exit 2, no tree means no loop.
   local label="generation (${1##*/})"
-  if run_case "${label}" none - -- "${XY_PYTHON}" -m langxyne "${1}" --generated "${2}" "${@:3}"; then :; else
+  if run_case "${label}" none - -- "${XY_PYTHON}" -m langxyne generate "${1}" --generated "${2}" "${@:3}"; then :; else
     printf 'run-bindings: %s failed; the loop cannot run\n' "${label}" >&2
     exit 2
   fi

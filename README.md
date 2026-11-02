@@ -19,7 +19,7 @@ The project is meant to stay simple: use it as-is or modify it to suit your need
 ## Quick Start Guide
 
 ```sh
-langxyne api/my_api.adef.toml --generated gen --project my_api --outputs=h,hpp
+langxyne generate api/my_api.adef.toml --generated gen --project my_api --outputs=h,hpp
 ```
 
 Writes the C header and C++ wrapper under `gen/`. The modes, outputs and flags are in [SPEC.md](SPEC.md) "Invocation"; how the generator is built is in [ARCHITECTURE.md](ARCHITECTURE.md).

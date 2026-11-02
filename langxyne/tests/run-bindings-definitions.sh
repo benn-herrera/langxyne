@@ -17,7 +17,7 @@ while IFS= read -r definition; do
   api_name="$(cat "${work}/api_name")"
   outputs="$(cat "${work}/outputs")"
   run_case "definition ${project} (generation)" none - -- \
-    "${XY_PYTHON}" -m langxyne "${definition}" --generated "${gen}" --project "${project}" --outputs="${outputs}"
+    "${XY_PYTHON}" -m langxyne generate "${definition}" --generated "${gen}" --project "${project}" --outputs="${outputs}"
   # the stub includes a wrapped header as <project>/<header>, so its root is the project directory's parent
   run_case "definition ${project} (stub syntax)" none - -- \
     clang++ --std=c++20 -fsyntax-only -Wall -Wextra -Werror "-I${definition_include}" "-I${project_dir%/*}" "${gen}/stub/"*.cpp
