@@ -5,6 +5,10 @@ as the single source of truth. It generates boilerplate code for exposing the AP
 for an implementation to be written under that spec in the system language of your choice. Updating all of your bindings
 is reduced to editing the spec and implementing your API change once with automation doing the rest. See [THESIS.md](THESIS.md).
 
+## Developer
+
+<https://keyoxide.org/wkd/benn@bennherrera.dev>
+
 ## Requirements and Supported Platforms
 
 Python 3.11 or later. `rustfmt` on `PATH` for the Rust outputs and `gofmt` for the Go output; a run that selects one without it exits 2 and writes nothing. The optional `jsonschema` package adds a schema check of each definition. Make-driven builds (`gendeps`) need GNU make 4.3 or later.
