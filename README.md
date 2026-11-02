@@ -5,6 +5,13 @@ as the single source of truth. It generates boilerplate code for exposing the AP
 for an implementation to be written under that spec in the system language of your choice. Updating all of your bindings
 is reduced to editing the spec and implementing your API change once with automation doing the rest. See [THESIS.md](THESIS.md).
 
+## Installation
+
+Vendor it or install with pip:
+```bash
+pip install git+https://github.com/benn-herrera/docdicer
+```
+
 ## Developer
 
 <https://keyoxide.org/wkd/benn@bennherrera.dev>
