@@ -36,7 +36,7 @@ lifetime=check_xy32_lifetime.mjs
 command cp "${fixtures}/${marshalling}" "${fixtures}/${lifetime}" "${fixtures}/check_xy32_shared.mjs" \
   "${fixtures}/node_xy32.d.ts" "${node_dir}/"
 run_case 'check_xy32 programs (tsc)' none - -- \
-  tsc --strict --noEmit --allowJs --checkJs --module nodenext \
+  tsc --ignoreConfig --strict --noEmit --allowJs --checkJs --module nodenext \
     "${node_dir}/${marshalling}" "${node_dir}/${lifetime}" "${node_dir}/node_xy32.d.ts"
 # the golden pin sorts stdout, so the want is sorted the same way
 if py "chr(10).join('%s=%s' % kv for kv in support.expected_constants(support.load(support_xy32.XY32)).items()) + chr(10)" "${work}/constants_xy32"; then

@@ -61,7 +61,7 @@ while IFS= read -r definition; do
   if [[ ",${outputs}," == *,node,* ]]; then
     run_case "definition ${project} (node --check)" none - -- node --check "${gen}/node/${api_name}.mjs"
     run_case "definition ${project} (tsc)" none - -- \
-      tsc --strict --noEmit --module nodenext "${gen}/node/${api_name}.d.mts"
+      tsc --ignoreConfig --strict --noEmit --module nodenext "${gen}/node/${api_name}.d.mts"
   fi
 done < <(find "${definitions}" -name '*.adef.toml' | sort)
 # a tree naming nothing is a setup error, not an empty round-trip
