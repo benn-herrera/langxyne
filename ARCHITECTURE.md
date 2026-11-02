@@ -2,7 +2,7 @@
 
 How this implementation meets SPEC.md. Standard-library Python, 3.11 or later for `tomllib`, plus the optional `jsonschema` package, plus `rustfmt` from the host's `PATH`, which lays out the four Rust outputs, and `gofmt` likewise, which lays out the Go output: the emitters render each construct in one plain form and the formatter decides the layout, so no Python code models a formatter's rules. A missing formatter is an error of the run that needs it (SPEC.md "Invocation").
 
-The generator is the Python package `langxyne/`, deployed either by `pip install git+https://github.com/benn-herrera/langxyne` (the extra `[schema]` adds `jsonschema`) or by copying the package directory into a consuming project. `pyproject.toml` requires Python 3.11 or later, installs the console script `langxyne` for `langxyne.__main__:main`, ships `assets/api_def.schema.json` and `emitters/assets/i64.lua` as package data, and leaves `langxyne.tests` out of the wheel. Module paths in "Shape" are relative to `langxyne/`.
+The generator is the Python package `langxyne/`, deployed either by `pip install git+https://github.com/benn-herrera/langxyne` (the extra `[schema]` adds `jsonschema`) or by copying the package directory into a consuming project. `pyproject.toml` requires Python 3.11 or later, installs the console script `langxyne` for `langxyne.__main__:main`, takes the package's version from `langxyne.__version__`, which `--version` prints, ships `assets/api_def.schema.json` and `emitters/assets/i64.lua` as package data, and leaves `langxyne.tests` out of the wheel. Module paths in "Shape" are relative to `langxyne/`.
 
 ## Shape
 

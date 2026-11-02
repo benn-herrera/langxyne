@@ -11,7 +11,7 @@ import sys
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
-from langxyne import model, naming
+from langxyne import __version__, model, naming
 from langxyne.emitters import EMITTERS
 from langxyne.emitters.emitter import ToolError
 
@@ -56,6 +56,7 @@ def _parser() -> argparse.ArgumentParser:
         prog="langxyne",
         description="generate userspace API artifacts from an API definition; `langxyne <mode> --help` gives a mode's arguments",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     modes = parser.add_subparsers(title="modes", dest="mode", required=True)
 
     about = "generate userspace API artifacts from an API definition"

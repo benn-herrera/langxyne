@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langxyne"
-version = "0.6.0"
+dynamic = ["version"]
 description = "Generate idiomatic bindings for many languages from one language-neutral API definition (.adef.toml)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,3 +24,6 @@ namespaces = false
 [tool.setuptools.package-data]
 langxyne = ["assets/*.json"]
 "langxyne.emitters" = ["assets/*.lua"]
+
+[tool.setuptools.dynamic]
+version = { attr = "langxyne.__version__" }

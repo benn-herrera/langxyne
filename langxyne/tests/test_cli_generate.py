@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import langxyne
 from langxyne import __main__ as langxyne_main
 from langxyne import model
 from langxyne.emitters import (
@@ -342,6 +343,9 @@ class Modes(unittest.TestCase):
         for mode in ("generate", "gendeps", "dump-schema"):
             with self.subTest(mode=mode):
                 self.assertRegex(stdout, rf"(?m)^ +{mode} +\S")
+
+    def test_version_prints_the_package_version(self) -> None:
+        self.assertEqual(run_main(["--version"]), (0, f"langxyne {langxyne.__version__}\n", ""))
 
     def test_no_mode_is_a_usage_error(self) -> None:
         code, stdout, stderr = run_main([])
