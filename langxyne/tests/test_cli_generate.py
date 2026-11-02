@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 from langxyne import __main__ as langxyne_main
+from langxyne import model
 from langxyne.emitters import (
     emit_abi_rs,
     emit_binding_cpp,
@@ -320,6 +321,18 @@ class Generate(GenerationCase):
                     "character\n",
                 )
                 self.assertFalse(generated.exists())
+
+
+class DumpSchema(unittest.TestCase):
+    def test_prints_the_schema_byte_for_byte(self) -> None:
+        code, stdout, stderr = run_main(["dump-schema"])
+        self.assertEqual((code, stderr), (0, ""))
+        self.assertEqual(stdout, model.SCHEMA_PATH.read_text(encoding="utf-8"))
+
+    def test_an_argument_is_a_usage_error(self) -> None:
+        code, stdout, stderr = run_main(["dump-schema", "xy_api.adef.toml"])
+        self.assertEqual((code, stdout), (2, ""))
+        self.assertIn("usage: langxyne dump-schema", stderr)
 
 
 if __name__ == "__main__":

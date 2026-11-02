@@ -1,6 +1,7 @@
 """CLI: validate an .adef.toml definition and write the selected outputs (see `EMITTERS`)
 into the generated directory, or (`--check`) compare them with the files there, or (gendeps
-mode) print a Makefile fragment naming those outputs for one definition. The definition's
+mode) print a Makefile fragment naming those outputs for one definition, or (dump-schema
+mode) print the definition schema. The definition's
 `_general._name` names every output.
 """
 
@@ -25,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["gendeps"]:
         return _gendeps_main(argv[1:])
+    if argv[:1] == ["dump-schema"]:
+        return _dump_schema_main(argv[1:])
     return _generate_main(argv)
 
 
@@ -39,6 +42,18 @@ def _outputs(text: str) -> tuple[str, ...]:
         if token in tokens[:i]:
             raise argparse.ArgumentTypeError(f"output '{token}' repeated (valid: {valid})")
     return tuple(t for t in TOKENS if t in tokens)
+
+
+def _dump_schema_main(argv: list[str]) -> int:
+    """Write the definition schema to stdout byte for byte, so an installed package's copy
+    can be redirected to where an editor's `#:schema` directive or `.taplo.toml` names it."""
+    parser = argparse.ArgumentParser(
+        prog="langxyne dump-schema",
+        description="print api_def.schema.json, the JSON Schema of a definition, to stdout",
+    )
+    parser.parse_args(argv)
+    sys.stdout.write(model.SCHEMA_PATH.read_text(encoding="utf-8"))
+    return 0
 
 
 def _add_outputs_argument(parser: argparse.ArgumentParser) -> None:

@@ -699,12 +699,12 @@ def generated_name_objections(names: Iterable[tuple[str, str]], used: Container[
     return [f"{where}: '{name}' is a name the generated code uses" for where, name in names if name in used]
 
 
-_SCHEMA_PATH = Path(__file__).parent / "api_def.schema.json"
+SCHEMA_PATH = Path(__file__).parent / "assets" / "api_def.schema.json"
 
 
 @functools.lru_cache(maxsize=1)
 def _schema_validator() -> "jsonschema.Draft202012Validator":
-    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     jsonschema.Draft202012Validator.check_schema(schema)
     return jsonschema.Draft202012Validator(schema)
 

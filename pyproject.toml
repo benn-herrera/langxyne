@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "langxyne"
+version = "0.1.0"
+description = "Generate idiomatic bindings for many languages from one language-neutral API definition (.adef.toml)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+schema = ["jsonschema>=4.26"]
+
+[project.scripts]
+langxyne = "langxyne.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["langxyne", "langxyne.*"]
+exclude = ["langxyne.tests", "langxyne.tests.*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+langxyne = ["assets/*.json"]
+"langxyne.emitters" = ["assets/*.lua"]

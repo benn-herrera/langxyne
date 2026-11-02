@@ -1480,13 +1480,13 @@ class SchemaEnforcement(unittest.TestCase):
         return model.load(path)
 
     def test_the_schema_is_a_valid_draft_2020_12_schema(self) -> None:
-        schema = json.loads((Path(model.__file__).parent / "api_def.schema.json").read_text(encoding="utf-8"))
+        schema = json.loads(model.SCHEMA_PATH.read_text(encoding="utf-8"))
         jsonschema.validators.Draft202012Validator.check_schema(schema)
 
     def test_every_hint_the_loader_names_is_declared_in_the_schema(self) -> None:
         source = Path(model.__file__).read_text(encoding="utf-8")
         named = set(re.findall(r'"(_[a-z_]+)"', source))
-        schema = json.loads((Path(model.__file__).parent / "api_def.schema.json").read_text(encoding="utf-8"))
+        schema = json.loads(model.SCHEMA_PATH.read_text(encoding="utf-8"))
         declared: set[str] = set()
 
         def collect(node: object) -> None:

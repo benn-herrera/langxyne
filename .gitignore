@@ -5,3 +5,5 @@ __pycache__/
 .claude-temp/
 .opencode/
 .opencode-temp/
+
+node_modules/
