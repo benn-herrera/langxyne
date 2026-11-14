@@ -59,3 +59,12 @@ pre-commit *paths: _venv
   "{{VENV_PYTHON}}" -m black --line-length=120 "${black_isort_paths[@]}"
   "{{VENV_PYTHON}}" -m isort --profile black --line-length 120 "${black_isort_paths[@]}"
   "{{VENV_PYTHON}}" -m flake8 --exclude=.venv --ignore="{{FLAKE8_IGNORE}}" "${flake8_paths[@]}"
+
+
+[doc("update devpro coding harness plugin")]
+agents:
+  @command -v devpro > /dev/null || { echo 'devpro not installed. run `brew install benn-herrera/tap/devpro`' >&2; exit 1; }
+  devpro install . --harness=claude
+  devpro install . --harness=opencode
+
+import? '.opencode/plugins/devpro/skills/docdicer/tools/runner-snippets/docdicer.just'

@@ -1,6 +1,13 @@
 # SPEC – langxyne
 
-The consumer-facing contract of the API generator: what a definition may say, and what every compliant implementation produces from it. How this implementation does so is in ARCHITECTURE.md beside this file.
+Consumer-facing behaviors and outcomes
+
+Must-see:
+
+- Any implementation in any language that satisfies this SPEC is valid
+- No project mechanisms or code structure are put forth — that belongs to ARCHITECTURE
+- No project-specific process is dictated — that belongs to CONVENTIONS
+
 ## Purpose
 
 A userspace API is stated once, in a definition file, and every artifact a consumer needs is generated from it: a C header that also carries, for the implementation's build only, the wrapped API's header and a compile-time check that the constants pinned to it agree; a header-only C++ wrapper; a LuaJIT module; a Rust binding; a Rust ABI relay, which exports the C ABI from a Rust implementation; implementation stubs in C++ and Rust; a Go binding over cgo; a Python module over ctypes; and, for the library built as a WASI module, a Rust wasm shim beside the relay and a Node binding, an ES module with its TypeScript declarations. The definition is the source of truth; the artifacts are build products and are never edited. The definition states meaning, not shape: each output is idiomatic for its own language, and no output copies another's form. The implementation is a library, which the Lua module loads by name, the Python module and the Node binding from a fixed path, and the Rust and Go bindings link, by the name `_general._bound_library` gives (see "The library").

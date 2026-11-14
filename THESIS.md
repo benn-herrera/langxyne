@@ -1,17 +1,27 @@
 # THESIS - langxyne
 
+What this project is and why
+
+This thesis does not:
+
+- Design user-facing behaviors or outcomes — that belongs to SPEC
+- Put forth project mechanisms, coding languages, or code structure — that belongs to ARCHITECTURE
+- Dictate project-specific process — that belongs to CONVENTIONS
+
+## What langxyne is
+
 API sync across implementation, exposure, bindings requires the tireless consistency best suited to automation
 
-## Agents and humans both stink at syncing bindings
+### Agents and humans both stink at syncing bindings
 
 It's finicky, drudgerous, and treacherous work. Writing massive test suites to verify
 binding consistency is tremendously inefficient. It's much cheaper to just make inconsistency unrepresentable in your process.
 
-## A C header is a rotten single source of truth
+### A C header is a rotten single source of truth
 
 A C header is an idiomatic expression of an API. Transforming one idiom to another while also imposing artificial restrictions on the usage of the single source of truth coding language introduces unnecessary complexities and gotchas.
 
-## A better way
+### A better way
 - A language-neutral DSL and code generator allow for a single authored contract to propagate to all supported languages
 - The neutral DSL makes emitting idiomatic code for each target language straightforward and imposes no additional restrictions or burdens on the hand-authored code
 - A well-designed, transparent DSL makes contract authoring, reading, editing easy for human or agent authors
