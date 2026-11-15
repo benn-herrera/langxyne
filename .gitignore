@@ -2,8 +2,7 @@
 __pycache__/
 .pytest_cache/
 .claude/
-.claude-temp/
 .opencode/
-.opencode-temp/
+.devpro-temp/
 
 node_modules/
