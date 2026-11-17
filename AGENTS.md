@@ -1,12 +1,11 @@
 # langxyne info and directives
 
- <!-- vvv-devpro devpro 0.17.1 do not edit at or between marker lines. devpro-vvv -->
+ <!-- vvv-devpro devpro 0.17.4 do not edit at or between marker lines. devpro-vvv -->
  
 ## Scratch space
 **INVARIANT**: `/tmp` and other system-wide scratch locations are off limits. All scratch —
-throwaway builds, probe harnesses, captured output — goes in `.opencode-temp/` under the
-active project root, beside `.opencode/` and never inside it (writes there trip
-the permission system's own-settings protections). If it doesn't exist, stop and say so; don't
+throwaway builds, probe harnesses, captured output — goes in `.devpro-temp/` under the
+active project root. If it doesn't exist, stop and say so; don't
 improvise a location.
 
 ## Task management
@@ -82,7 +81,8 @@ changes cannot be seen at its source or corrected there.
 - The full project document set:
   - THESIS.md — purpose, intent, the 'north star' for decisions; explicitly not spec or
     implementation
-  - SPEC.md — consumer-facing outcomes, such that any compliant implementation would be valid
+  - SPEC.md — consumer-facing outcomes, such that any compliant implementation in any language would
+    be valid
   - ARCHITECTURE.md — how this particular implementation meets SPEC.md
   - CONVENTIONS.md — project-specific additions to house rules and practices
 - Each states what the others do not; where one needs another's content it cites rather than
@@ -112,7 +112,7 @@ changes cannot be seen at its source or corrected there.
   session, first read the relevant coder agent definition and those documents, where not in context.
 - A comment earns its place only by clarifying what the code cannot state — an invariant, an
   external contract, why not the obvious way; if the code needs explaining, fix the code. Docstrings
-  document behaviour. Neither cites a decision, a review id or a project document: those rot as
+  document behavior. Neither cites a decision, a review id or a project document: those rot as
   documents move, and git already holds the record. Judge the block, not the line: every note in it
   can earn its place while the block outweighs what it documents. The test is who reads it and when
   — a note the next editor of this file needs stays; one answering "why was this done" belongs in
@@ -121,7 +121,7 @@ changes cannot be seen at its source or corrected there.
   `sed -i`, `perl -i`, a one-off script, a heredoc, or a redirect: a scripted edit hits every match,
   not the one site meant, and shows no diff. Moving or copying a file as it stands is neither.
   Specific exemptions:
-  - Writes to scratch space `.opencode-temp/`
+  - Writes to scratch space `.devpro-temp/`
   - File-writing tools — formatter, renderer, build
 - The edit and write tools write JSON escapes for U+2028/U+2029 as raw characters; spell those
   code points another way, e.g. in Python `chr(0x2028)`; elsewhere the language's own escape, built at runtime.
@@ -157,6 +157,9 @@ changes cannot be seen at its source or corrected there.
   present ready-to-execute and wait.
 - A one-off instruction authorizes one act, not a standing rule — an act that spans several turns is
   still one act, and the quote that authorized it still governs.
+- A package an approved plan names needs no authorization beyond the plan's approval: that
+  approval is the quote the package's work runs under. *Purpose:* the work a plan names was
+  authorized when the plan was approved.
 
 ## Responding to the user
 - **ZERO SELF-BLAME LANGUAGE.** Self-blame is theater: it neither identifies the problem nor

@@ -64,7 +64,6 @@ pre-commit *paths: _venv
 [doc("update devpro coding harness plugin")]
 agents:
   @command -v devpro > /dev/null || { echo 'devpro not installed. run `brew install benn-herrera/tap/devpro`' >&2; exit 1; }
-  devpro install . --harness=claude
-  devpro install . --harness=opencode
+  devpro install .
 
 import? '.opencode/plugins/devpro/skills/docdicer/tools/runner-snippets/docdicer.just'
